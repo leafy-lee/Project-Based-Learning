@@ -19,9 +19,6 @@ struct termios orig_termios;
 
 void die(const char *s) {
     // perror() comes from <stdio.h>, and exit() comes from <stdlib.h>
-    write(STDOUT_FILENO, "\x1b[2J", 4);
-    write(STDOUT_FILENO, "\x1b[H", 3);
-
     perror(s);
     exit(1);
 }
@@ -62,58 +59,27 @@ void enableRawMode() {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
-char editorReadKey() {
-    int nread;
-    char c;
-    while ((nread = read(STDIN_FILENO, &c, 1)) != 1) {
-        if (nread == -1 && errno != EAGAIN) die("read");
-    }
-    return c;
-}
-
-/*** output ***/ 
-
-void editorDrawRows() {
-    int y;
-    for (y = 0; y < 24; y++) {
-        write(STDOUT_FILENO, "~\r\n", 3);
-    }
-}
-
-void editorRefreshScreen() {
-    // write() and STDOUT_FILENO come from <unistd.h>.
-    // https://vt100.net/docs/vt100-ug/chapter3.html#ED
-    // ncurses uses the terminfo database to decide escape sequences.
-    write(STDOUT_FILENO, "\x1b[2J", 4);
-    write(STDOUT_FILENO, "\x1b[H", 3);
-
-    editorDrawRows();
-
-    write(STDOUT_FILENO, "\x1b[H", 3);
-}
-
-/*** input ***/
-
-void editorProcessKeypress() {
-    char c = editorReadKey();
-
-    switch (c)
-    {
-    case CTRL_KEY('q'):
-        // write(STDOUT_FILENO, "\x1b[2J", 4);
-        // write(STDOUT_FILENO, "\x1b[H", 3);
-        exit(0);
-        break;
-    }
-}
-
 /*** init ***/
 
 int main(){
     enableRawMode();
+    printf("%c,%c,%c", 17, 63, 127);
 
     while (1) {
-        editorProcessKeypress();
+        char c = '\0';
+        // read() and STDIN_FILENO come from <unistd.h>
+        if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) die("read");
+        // iscntrl() comes from <ctype.h>
+        if (iscntrl(c)) {
+            printf("%d\r\n", c);
+        } else {
+            printf("%d ('%c')\r\n", c, c);
+        }
+        // Ctrl key strips bits 5 and 6 from combination with Ctrl
+        // 00010001	ctrl-Q
+        // 01010001	Q
+        // 01110001	q
+        if (c == CTRL_KEY('q')) break;
     }
 
     return 0;
