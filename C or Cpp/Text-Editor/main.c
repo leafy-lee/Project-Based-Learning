@@ -23,8 +23,6 @@ struct editorConfig {
 
 struct editorConfig E;
 
-char *row = "\r";
-
 /*** terminal ***/
 
 void die(const char *s) {
@@ -34,7 +32,7 @@ void die(const char *s) {
 
     perror(s);
 
-    write(STDOUT_FILENO, row, strlen(row));
+    printf("\r");
 
     exit(1);
 }
@@ -84,6 +82,26 @@ char editorReadKey() {
     return c;
 }
 
+int getCursorPosition(int *rows, int *cols) {
+    char buf[32];
+    unsigned int i = 0;
+
+    if (write(STDOUT_FILENO, "\x1b[6n", 4) != 4) return -1;
+
+    while (i < sizeof(buf) - 1) {
+        if (read(STDIN_FILENO, &buf[i], 1) != 1) break;
+        if (buf[i] == 'R') break;
+        i++;
+    }
+    buf[i] = '\0';
+    
+    if (buf[0] != '\x1b' || buf[1] != '[') return -1;
+    // sscanf() comes from <stdio.h>.
+    if (sscanf(&buf[2], "%d;%d", rows, cols) != 2) return -1;
+
+    return 0;
+}
+
 int getWindowSizeSoft(int *rows, int *cols) {
     struct winsize ws;
 
@@ -101,8 +119,9 @@ int getWindowSizeHard(int *rows, int *cols) {
     struct winsize ws;
 
     // ioctl(), TIOCGWINSZ, and struct winsize come from <sys/ioctl.h>.
-    if (1 || ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
         if (write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12) != 12) return -1;
+        return getCursorPosition(rows, cols);
         editorReadKey();
         return -1;
     } else {
@@ -112,12 +131,39 @@ int getWindowSizeHard(int *rows, int *cols) {
     }
 }
 
+/*** append buffer ***/
+
+struct abuf
+{
+    char *b;
+    int len;
+};
+
+#define ABUF_INIT {NULL, 0}
+
+void abAppend(struct abuf *ab, const char *s, int len) {
+    // realloc() and free() come from <stdlib.h>. memcpy() comes from <string.h>.
+    char *new = realloc(ab->b, ab->len + len);
+
+    if (new == NULL) return;
+    memcpy(&new[ab->len], s, len);
+    ab->b = new;
+    ab->len += len;
+}
+
+void abFree(struct abuf *ab) {
+    free(ab->b);
+}
+
 /*** output ***/ 
 
 void editorDrawRows() {
     int y;
     for (y = 0; y < E.screenrows; y++) {
-        write(STDOUT_FILENO, "~\r\n", 3);
+        write(STDOUT_FILENO, "~", 1);
+        if (y < E.screenrows - 1) {
+        write(STDOUT_FILENO, "\r\n", 2);
+        }
     }
 }
 
@@ -151,7 +197,7 @@ void editorProcessKeypress() {
 /*** init ***/
 
 void initEditor() {
-    if (getWindowSizeSoft(&E.screencols, &E.screenrows) == -1) die("getWindowSizeSoft");
+    // if (getWindowSizeSoft(&E.screencols, &E.screenrows) == -1) die("getWindowSizeSoft");
     if (getWindowSizeHard(&E.screencols, &E.screenrows) == -1) die("getWindowSizeHard");
 }
 
@@ -160,6 +206,7 @@ int main(){
     initEditor();
 
     while (1) {
+        editorRefreshScreen();
         editorProcessKeypress();
     }
 
