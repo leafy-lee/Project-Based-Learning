@@ -7,6 +7,7 @@
 #include <sys/ioctl.h>
 #include <errno.h>
 #include <termios.h>
+#include <string.h>
 
 /*** defines ***/
 
@@ -22,6 +23,8 @@ struct editorConfig {
 
 struct editorConfig E;
 
+char *row = "\r";
+
 /*** terminal ***/
 
 void die(const char *s) {
@@ -30,6 +33,9 @@ void die(const char *s) {
     write(STDOUT_FILENO, "\x1b[H", 3);
 
     perror(s);
+
+    write(STDOUT_FILENO, row, strlen(row));
+
     exit(1);
 }
 
@@ -78,7 +84,7 @@ char editorReadKey() {
     return c;
 }
 
-int getWindowSize(int *rows, int *cols) {
+int getWindowSizeSoft(int *rows, int *cols) {
     struct winsize ws;
 
     // ioctl(), TIOCGWINSZ, and struct winsize come from <sys/ioctl.h>.
@@ -91,11 +97,26 @@ int getWindowSize(int *rows, int *cols) {
     }
 }
 
+int getWindowSizeHard(int *rows, int *cols) {
+    struct winsize ws;
+
+    // ioctl(), TIOCGWINSZ, and struct winsize come from <sys/ioctl.h>.
+    if (1 || ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
+        if (write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12) != 12) return -1;
+        editorReadKey();
+        return -1;
+    } else {
+        *cols = ws.ws_col;
+        *rows = ws.ws_row;
+        return 0;
+    }
+}
+
 /*** output ***/ 
 
 void editorDrawRows() {
     int y;
-    for (y = 0; y < 24; y++) {
+    for (y = 0; y < E.screenrows; y++) {
         write(STDOUT_FILENO, "~\r\n", 3);
     }
 }
@@ -120,8 +141,8 @@ void editorProcessKeypress() {
     switch (c)
     {
     case CTRL_KEY('q'):
-        // write(STDOUT_FILENO, "\x1b[2J", 4);
-        // write(STDOUT_FILENO, "\x1b[H", 3);
+        write(STDOUT_FILENO, "\x1b[2J", 4);
+        write(STDOUT_FILENO, "\x1b[H", 3);
         exit(0);
         break;
     }
@@ -130,7 +151,8 @@ void editorProcessKeypress() {
 /*** init ***/
 
 void initEditor() {
-    if (getWindowSize(&E.screencols, &E.screenrows) == -1) die("getWindowSize");
+    if (getWindowSizeSoft(&E.screencols, &E.screenrows) == -1) die("getWindowSizeSoft");
+    if (getWindowSizeHard(&E.screencols, &E.screenrows) == -1) die("getWindowSizeHard");
 }
 
 int main(){
