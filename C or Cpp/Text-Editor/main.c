@@ -11,11 +11,16 @@
 
 /*** defines ***/
 
+#define KILO_VERSION "0.0.1"
+
 #define CTRL_KEY(k) ((k) & 0x1f)
+
+#define DEBUG 0
 
 /*** data ***/
 
-struct editorConfig {   
+struct editorConfig {  
+    int cx, cy;
     int screenrows;
     int screencols;
     struct termios orig_termios;
@@ -94,6 +99,7 @@ int getCursorPosition(int *rows, int *cols) {
         i++;
     }
     buf[i] = '\0';
+    printf("\r\n&buf[1]: '%s'\r\n", &buf[1]);
     
     if (buf[0] != '\x1b' || buf[1] != '[') return -1;
     // sscanf() comes from <stdio.h>.
@@ -102,31 +108,23 @@ int getCursorPosition(int *rows, int *cols) {
     return 0;
 }
 
-int getWindowSizeSoft(int *rows, int *cols) {
+int getWindowSize(int *rows, int *cols) {
     struct winsize ws;
 
     // ioctl(), TIOCGWINSZ, and struct winsize come from <sys/ioctl.h>.
-    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
-        return -1;
-    } else {
-        *cols = ws.ws_col;
-        *rows = ws.ws_row;
-        return 0;
-    }
-}
-
-int getWindowSizeHard(int *rows, int *cols) {
-    struct winsize ws;
-
-    // ioctl(), TIOCGWINSZ, and struct winsize come from <sys/ioctl.h>.
-    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
+    if (1 || ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
+        if (DEBUG) printf("[DEBUG]: getWindowSize - if\n");
         if (write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12) != 12) return -1;
+        // if (DEBUG) printf("<\n");
+        // editorReadKey();
         return getCursorPosition(rows, cols);
         editorReadKey();
         return -1;
     } else {
+        if (DEBUG) printf("[DEBUG]: getWindowSize - else\n");
         *cols = ws.ws_col;
         *rows = ws.ws_row;
+        if (DEBUG) printf("[DEBUG]: cols:%d, rows:%d\n", ws.ws_col, ws.ws_row);
         return 0;
     }
 }
@@ -160,7 +158,34 @@ void abFree(struct abuf *ab) {
 void editorDrawRows(struct abuf *ab) {
     int y;
     for (y = 0; y < E.screenrows; y++) {
-        abAppend(ab, "~", 1);
+        // snprintf() comes from <stdio.h>.
+        if (y == E.screenrows / 3) {
+            char welcome[80];
+            int welcomelen = snprintf(welcome, sizeof(welcome),
+             "Kilo editor -- version %s", KILO_VERSION);
+            if (welcomelen > E.screencols) welcomelen = E.screencols;
+            int padding = (E.screencols - welcomelen) / 2;
+            if (padding) {
+            abAppend(ab, "~", 1);
+            padding--;
+            }
+            while (padding--) abAppend(ab, " ", 1);
+            abAppend(ab, welcome, welcomelen);
+            if (DEBUG){
+                int padding2 = (E.screencols - welcomelen) / 2;
+                while (padding2--) abAppend(ab, "-", 1);
+                printf("__%d;%d-%d  ", E.screenrows / 3, E.screencols, welcomelen);
+            }
+        } else {
+            if (DEBUG){
+                int pad = E.screencols;
+                while (pad--) abAppend(ab, "~", 1);
+            } else {
+                abAppend(ab, "~", 1);
+            }
+        }
+
+        abAppend(ab, "\x1b[K", 3);
         if (y < E.screenrows - 1) {
             abAppend(ab, "\r\n", 2);
         }
@@ -177,7 +202,7 @@ void editorRefreshScreen() {
     // write(STDOUT_FILENO, "\x1b[H", 3);
 
     abAppend(&ab, "\x1b[?25l", 6);
-    abAppend(&ab, "\x1b[2J", 4);
+    // abAppend(&ab, "\x1b[2J", 4);
     abAppend(&ab, "\x1b[H", 3);
 
     editorDrawRows(&ab);
@@ -209,7 +234,10 @@ void editorProcessKeypress() {
 
 void initEditor() {
     // if (getWindowSizeSoft(&E.screencols, &E.screenrows) == -1) die("getWindowSizeSoft");
-    if (getWindowSizeHard(&E.screencols, &E.screenrows) == -1) die("getWindowSizeHard");
+    if (getWindowSize(&E.screenrows, &E.screencols) == -1) die("getWindowSize");
+    if (DEBUG){
+        printf("%d;%d", E.screenrows, E.screencols);
+    }
 }
 
 int main(){
