@@ -5,5 +5,6 @@
         "stdlib.h": "c",
         "ctype.h": "c"
     },
-    "editor.fontFamily": "Consolas, 'Fira Code', monospace"
+    "editor.fontFamily": "Consolas, 'Fira Code', monospace",
+    "editor.fontLigatures": true,
 }
