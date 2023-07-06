@@ -2,6 +2,8 @@
     "files.associations": {
         "termios.h": "c",
         "types.h": "c",
-        "stdlib.h": "c"
-    }
+        "stdlib.h": "c",
+        "ctype.h": "c"
+    },
+    "editor.fontFamily": "Consolas, 'Fira Code', monospace"
 }

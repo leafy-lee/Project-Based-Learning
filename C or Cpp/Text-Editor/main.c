@@ -198,10 +198,10 @@ int getWindowSize(int *rows, int *cols) {
         editorReadKey();
         return -1;
     } else {
-        if (DEBUG) printf("[DEBUG]: getWindowSize - else\n");
+        if (DEBUG) printf("[DEBUG]: getWindowSize - else");
         *cols = ws.ws_col;
         *rows = ws.ws_row;
-        if (DEBUG) printf("[DEBUG]: cols:%d, rows:%d\n", ws.ws_col, ws.ws_row);
+        if (DEBUG) printf("[DEBUG]: cols:%d, rows:%d", ws.ws_col, ws.ws_row);
         return 0;
     }
 }
@@ -257,6 +257,25 @@ void editorAppendRow(char *s, size_t len) {
     editorUpdateRow(&E.row[at]);
 
     E.numrows++;
+}
+
+void editorRowInsertChar(erow *row, int at, int c) {
+    // memmove() comes from <string.h>
+    if (at < 0 || at > row->size) at = row->size;
+    row->chars = realloc(row->chars, row->size + 2);
+    memmove(&row->chars[at + 1], &row->chars[at], row->size - at + 1);
+    row->size++;
+    row->chars[at] = c;
+    editorUpdateRow(row);
+}
+
+/*** editor operations ***/
+
+void editorInserChar(int c) {
+    if (E.cy == E.numrows) {
+        editorAppendRow("", 0);
+    }
+    editorRowInsertChar(&E.row[E.cy], E.cy, c);
 }
 
 /*** file i/o ***/
@@ -355,8 +374,8 @@ void editorDrawRows(struct abuf *ab) {
                     printf("__%d;%d-%d  ", E.screenrows / 3, E.screencols, welcomelen);
                 }
             } else {
-                if (DEBUG){int pad = E.screencols; while (pad--) abAppend(ab, "~", 1);}
-                abAppend(ab, "~", 1);
+                if (DEBUG){int pad = E.screencols; while (pad--) {abAppend(ab, "~", 1);printf("%d", E.screencols);}}
+                else {abAppend(ab, "~", 1);}
             }
         } else {
             int len = E.row[filerow].rsize - E.coloff < 0 ? 0 : E.row[filerow].rsize - E.coloff;
@@ -377,9 +396,11 @@ void editorDrawStatusBar(struct abuf *ab) {
     int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d",
         E.cy + 1, E.numrows);
     len = len > E.screencols ? E.screencols : len;
+    abAppend(ab, status, len);
     while (len < E.screencols) {
         if (E.screencols - len == rlen) {
             abAppend(ab, rstatus, rlen);
+            // len++;
             break;
         } else {
             abAppend(ab, " ", 1);
@@ -548,6 +569,7 @@ void initEditor() {
     E.statusmsg_time = 0;
 
     if (getWindowSize(&E.screenrows, &E.screencols) == -1) die("getWindowSize");
+    printf("%d", E.screencols);
     E.screenrows -= 2;
     if (DEBUG){
         printf("%d;%d", E.screenrows, E.screencols);
