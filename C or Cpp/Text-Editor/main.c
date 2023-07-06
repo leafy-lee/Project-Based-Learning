@@ -275,7 +275,8 @@ void editorInserChar(int c) {
     if (E.cy == E.numrows) {
         editorAppendRow("", 0);
     }
-    editorRowInsertChar(&E.row[E.cy], E.cy, c);
+    editorRowInsertChar(&E.row[E.cy], E.cx, c);
+    E.cx++;
 }
 
 /*** file i/o ***/
@@ -550,6 +551,10 @@ void editorProcessKeypress() {
     case ARROW_UP:
     case ARROW_DOWN:
         editorMoveCursor(c);
+        break;
+
+    default:
+        editorInserChar(c);
         break;
     }
 }
