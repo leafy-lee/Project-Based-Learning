@@ -1,2 +1,6 @@
-# test file
+# Test file
 *.txt
+
+# Compiled File
+main
+kilo
